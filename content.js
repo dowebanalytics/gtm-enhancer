@@ -31,6 +31,29 @@ const CSS = `
   max-width: none !important;
 }
 
+/* ── Feature 6: Accordion account home page ─────────────────────────────── */
+
+.gtm-enh-acc-chevron {
+  display: inline-block;
+  font-size: 18px;
+  color: rgba(0,0,0,0.45);
+  transition: transform 0.2s ease;
+  margin-left: 8px;
+  vertical-align: middle;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.gtm-enh-acc-chevron.is-collapsed {
+  transform: rotate(-90deg);
+}
+
+.account-list-header__text {
+  cursor: pointer;
+  display: inline-flex !important;
+  align-items: center;
+}
+
 /* ── Top bar: search a destra, picker auto-width ───────────────────────── */
 
 suite-assistant-search.gms-header-assistant-search {
@@ -38,10 +61,6 @@ suite-assistant-search.gms-header-assistant-search {
   margin-left: auto !important;
 }
 
-/* Spacer dopo la search: azzerato (margin-left:auto lo sostituisce) */
-.md-toolbar-tools.gms-header-toolbar > span.flex {
-  flex: 0 0 0 !important;
-}
 
 /* Picker contenitore: larghezza adattata al contenuto, senza troncamento */
 suite-universal-picker.gms-header-up {
@@ -468,6 +487,47 @@ function tryInjectHeaderInfo(attempt = 0) {
   setTimeout(() => tryInjectHeaderInfo(attempt + 1), 200);
 }
 
+// ── Feature 6: Accordion account home page ───────────────────────────────────
+
+function isHomePage() {
+  const h = window.location.hash;
+  return h === '' || h === '#home' || h === '#/home';
+}
+
+function injectAccordions() {
+  if (!isHomePage()) return;
+  document.querySelectorAll('div.account.card.wd-account').forEach(account => {
+    if (account.querySelector('.gtm-enh-acc-chevron')) return;
+    const headerText = account.querySelector('.account-list-header__text');
+    const table      = account.querySelector('table.gtm-table');
+    if (!headerText || !table) return;
+
+    const chevron = document.createElement('span');
+    chevron.className = 'gtm-enh-acc-chevron is-collapsed';
+    chevron.textContent = '▾';
+    headerText.appendChild(chevron);
+
+    // Chiuso di default
+    table.style.display = 'none';
+
+    headerText.addEventListener('click', () => {
+      const isNowCollapsed = table.style.display !== 'none';
+      table.style.display  = isNowCollapsed ? 'none' : '';
+      chevron.classList.toggle('is-collapsed', isNowCollapsed);
+    });
+  });
+}
+
+let accordionTimer = null;
+function tryInjectAccordions(attempt = 0) {
+  if (attempt > 20) return;
+  if (document.querySelectorAll('div.account.card.wd-account').length > 0) {
+    injectAccordions();
+    return;
+  }
+  accordionTimer = setTimeout(() => tryInjectAccordions(attempt + 1), 200);
+}
+
 // ── Feature 5: Sort by Last Edited desc ──────────────────────────────────────
 
 function getLastEditedSpan() {
@@ -504,6 +564,7 @@ function applyState() {
   applyExpandState();
   tryInjectHeaderInfo();
   trySortByLastEdited();
+  tryInjectAccordions();
 
   if (state.typeFilter || state.filterVariables) {
     startFilterBodyObserver();
@@ -556,6 +617,10 @@ window.addEventListener('hashchange', () => {
     // Feature 5: riapplica sort by last edited sulla nuova pagina
     clearTimeout(sortTimer);
     trySortByLastEdited();
+
+    // Feature 6: accordion sulla home
+    clearTimeout(accordionTimer);
+    tryInjectAccordions();
   }, 150);
 });
 
