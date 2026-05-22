@@ -426,6 +426,24 @@ function removeTypeFilter() {
 // modifica il DOM (navigazione SPA, caricamento tabella, re-render).
 let filterBodyObserver = null;
 
+function refreshFilterUI() {
+  const filterEl = document.getElementById(FILTER_ID);
+  if (!filterEl) {
+    if (document.querySelector('gtm-table-filter')) injectTypeFilter();
+    return;
+  }
+  // Il container chip è già nel DOM ma GTM ha re-renderato le righe (add/edit/delete):
+  // aggiorna conteggi, bollini e filtro attivo.
+  const currentTypes = collectTypeCounts();
+  if (currentTypes.size === 0) return; // tabella ancora in caricamento, riprova dopo
+  // Rimuovi tipi eliminati dall'activeTypes (es. eliminati tutti i tag di quel tipo)
+  activeTypes.forEach(t => { if (!currentTypes.has(t)) activeTypes.delete(t); });
+  const cbContainer = filterEl.querySelector('.gtm-enh-checkboxes');
+  if (cbContainer) populateCheckboxes(cbContainer);
+  colorizeRows();
+  applyTypeFilter();
+}
+
 function startFilterBodyObserver() {
   if (filterBodyObserver) return;
   let debounceTimer = null;
@@ -433,10 +451,9 @@ function startFilterBodyObserver() {
   filterBodyObserver = new MutationObserver(() => {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
-      if (!state.typeFilter || !isFilterablePage()) return;
-      if (!document.getElementById(FILTER_ID) && document.querySelector('gtm-table-filter')) {
-        injectTypeFilter();
-      }
+      if (!isFilterablePage()) return;
+      if (!(state.typeFilter || state.filterVariables)) return;
+      refreshFilterUI();
     }, 350);
   });
   filterBodyObserver.observe(target, { childList: true, subtree: true });
