@@ -451,6 +451,15 @@ function startFilterBodyObserver() {
   filterBodyObserver = new MutationObserver(() => {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
+      // Sort: sempre attivo — riesegue se l'header è presente e il sort non è già desc.
+      // isSortPending e il check isDesc dentro applySortByLastEdited prevengono loop.
+      const span = getLastEditedSpan();
+      if (span) {
+        const isDesc = span.classList.contains('active-sort') && span.classList.contains('sort-reversed');
+        if (!isDesc) applySortByLastEdited();
+      }
+
+      // Filter chips & dots: solo su pagine filtrabili con toggle attivo
       if (!isFilterablePage()) return;
       if (!(state.typeFilter || state.filterVariables)) return;
       refreshFilterUI();
@@ -553,18 +562,22 @@ function getLastEditedSpan() {
   return th ? th.querySelector('span.sortable') : null;
 }
 
+let isSortPending = false; // evita doppi click sovrapposti
+
 function applySortByLastEdited() {
+  if (isSortPending) return true; // già in corso, non interferire
   const span = getLastEditedSpan();
   if (!span) return false;
   const isDesc = span.classList.contains('active-sort') && span.classList.contains('sort-reversed');
   if (isDesc) return true;
-  span.click();
-  // Primo click → ascending (active-sort); secondo → descending (sort-reversed)
+  isSortPending = true;
+  span.click(); // click 1 → ascending
   setTimeout(() => {
     if (span.classList.contains('active-sort') && !span.classList.contains('sort-reversed')) {
-      span.click();
+      span.click(); // click 2 → descending
     }
-  }, 150);
+    isSortPending = false;
+  }, 200);
   return true;
 }
 
@@ -583,13 +596,16 @@ function applyState() {
   trySortByLastEdited();
   tryInjectAccordions();
 
+  // L'observer gestisce sia il sort (sempre) sia i filtri chip (quando abilitati).
+  // Va avviato incondizionatamente: anche se i filtri sono disabilitati,
+  // il sort deve re-applicarsi quando GTM ri-renderizza la tabella.
+  startFilterBodyObserver();
+
   if (state.typeFilter || state.filterVariables) {
-    startFilterBodyObserver();
     if (isFilterablePage()) tryInjectWithRetry();
-    else removeTypeFilter(); // pagina corrente non più filtrabile (es. toggle variabili disattivato)
+    else removeTypeFilter();
   } else {
     removeTypeFilter();
-    stopFilterBodyObserver();
   }
 }
 
